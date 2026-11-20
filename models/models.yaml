@@ -1,0 +1,110 @@
+# The models this repo knows about, and which of them go into a release.
+#
+# A model goes into a release only if it is listed under `release` AND marked
+# `shippable: true`; scripts/assemble.mjs refuses anything else. A model that
+# isn't shippable can still be fetched, benched and tried on the check page.
+# Changing `shippable` is a decision about a licence: say why in the commit.
+#
+# Each model:
+#   runtime     the runtime that runs it (runtimes/<name>)
+#   licence     SPDX id; `licenceFile` under licences/ ships beside the model
+#   shippable   whether a release may carry it
+#   source      the upstream archive, pinned by SHA-256, and where it came from
+#   files       role → the file's name inside the archive
+#   lagSeconds  how long after a word is said its time lands, measured on the
+#               bench; the app subtracts it from every time it reads
+#   config      runtime-specific settings, passed to the worker untouched
+#   test        a recording in the archive, and what is said in it, for the
+#               smoke test
+
+release:
+  - zipformer-en-70M
+
+models:
+  zipformer-en-70M:
+    label: Zipformer English, streaming, 2023-06-26 (int8)
+    runtime: sherpa-onnx
+    licence: Apache-2.0
+    licenceFile: Apache-2.0.txt
+    shippable: true
+    source:
+      url: https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2
+      sha256: 639e25b578e9e997131402199419c13a941f8e4e198e2da1ce57dbf5cf401282
+      about: https://huggingface.co/Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17
+      trainedOn: LibriSpeech
+    files:
+      encoder: encoder-epoch-99-avg-1-chunk-16-left-128.int8.onnx
+      decoder: decoder-epoch-99-avg-1-chunk-16-left-128.onnx
+      joiner: joiner-epoch-99-avg-1-chunk-16-left-128.int8.onnx
+      tokens: tokens.txt
+    # The bench measured 0.53–0.62 s; 0.5 is what the app has used so far.
+    lagSeconds: 0.5
+    config:
+      type: transducer
+      featureDim: 80
+      endpoint:
+        rule1MinTrailingSilence: 2.0
+        rule2MinTrailingSilence: 0.9
+        rule3MinUtteranceLength: 30
+    test:
+      wav: test_wavs/0.wav
+      text: AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
+
+  # Fails the smoke test: it loses the first words of its own test recording
+  # ("after early nightfall") unless about a second of sound comes before
+  # them, which a call at the start of a take wouldn't have.
+  zipformer-en-20M:
+    label: Zipformer English, streaming, small, 2023-02-17 (int8)
+    runtime: sherpa-onnx
+    licence: Apache-2.0
+    licenceFile: Apache-2.0.txt
+    shippable: true
+    source:
+      url: https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-20M-2023-02-17.tar.bz2
+      sha256: 9c559283e8498d3fe95913c79ca1cb454bb26281ac2b102b41306c7d752765d9
+      about: https://huggingface.co/desh2608/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-small
+      trainedOn: LibriSpeech
+    files:
+      encoder: encoder-epoch-99-avg-1.int8.onnx
+      decoder: decoder-epoch-99-avg-1.onnx
+      joiner: joiner-epoch-99-avg-1.int8.onnx
+      tokens: tokens.txt
+    lagSeconds: 0.5
+    config:
+      type: transducer
+      featureDim: 80
+      endpoint:
+        rule1MinTrailingSilence: 2.0
+        rule2MinTrailingSilence: 0.9
+        rule3MinUtteranceLength: 30
+    test:
+      wav: test_wavs/0.wav
+      text: AFTER EARLY NIGHTFALL THE YELLOW LAMPS WOULD LIGHT UP HERE AND THERE THE SQUALID QUARTER OF THE BROTHELS
+
+  kroko-en:
+    label: Kroko English, streaming, 2025-08-06
+    runtime: sherpa-onnx
+    # The best of the three on the first bench. Share-alike: whether a release
+    # may carry it is undecided, so it is here to compare against. Its model
+    # card says "CC-BY-SA" with no version, and offers commercial licences for
+    # Kroko's other models.
+    licence: CC-BY-SA
+    shippable: false
+    source:
+      url: https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-kroko-2025-08-06.tar.bz2
+      sha256: c8676e5ff9ac2a85296e53ee0fd4d5fb1db6770e7a7647166eeafe349ade6834
+      about: https://huggingface.co/Banafo/Kroko-ASR
+    files:
+      encoder: encoder.onnx
+      decoder: decoder.onnx
+      joiner: joiner.onnx
+      tokens: tokens.txt
+    # Not measured separately; Kroko hands its words over in larger pieces.
+    lagSeconds: 0.5
+    config:
+      type: transducer
+      featureDim: 80
+      endpoint:
+        rule1MinTrailingSilence: 2.0
+        rule2MinTrailingSilence: 0.9
+        rule3MinUtteranceLength: 30

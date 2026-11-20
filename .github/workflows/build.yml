@@ -1,0 +1,68 @@
+name: build
+
+# Every push builds the runtime in its pinned container, fetches the models
+# the release lists, assembles a release and smoke-tests it. A tag v<N> also
+# publishes it as a GitHub release: the only way a release is made.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    env:
+      CONTAINER_ENGINE: docker
+      RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'dev' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Model archives
+        uses: actions/cache@v4
+        with:
+          path: build/archives
+          key: archives-${{ hashFiles('models/models.yaml') }}
+          restore-keys: archives-
+
+      - name: Build the runtime
+        run: scripts/build.sh sherpa-onnx
+
+      - name: Fetch the models
+        run: node scripts/fetch-models.mjs
+
+      - name: Assemble
+        run: node scripts/assemble.mjs --release "$RELEASE"
+
+      - name: Smoke test
+        run: node scripts/smoke-test.mjs "dist/$RELEASE"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.RELEASE }}
+          path: dist/${{ env.RELEASE }}-assets/
+          retention-days: 14
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$RELEASE" "dist/$RELEASE-assets/"* \
+            --title "$RELEASE" \
+            --notes-file <(node scripts/release-notes.mjs "dist/$RELEASE")

@@ -1,0 +1,17 @@
+{
+  "name": "voice-engine",
+  "private": true,
+  "description": "Builds, tests and publishes the speech recogniser Sail Scoring runs on a phone.",
+  "license": "MIT",
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "build": "scripts/build.sh",
+    "models": "node scripts/fetch-models.mjs",
+    "assemble": "node scripts/assemble.mjs",
+    "smoke": "node scripts/smoke-test.mjs"
+  },
+  "dependencies": {
+    "yaml": "2.8.1"
+  }
+}
