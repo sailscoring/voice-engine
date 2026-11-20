@@ -1,6 +1,6 @@
 // Put a release together from a built runtime and fetched models.
 //
-//   node scripts/assemble.mjs --release <name> [--out dist] [--models <id>,…]
+//   node scripts/assemble.mjs --release <name> [--out dist] [--models <id>,…] [--trials]
 //
 // Reads build/runtimes/<runtime>/ (scripts/build.sh) and build/models/<id>/
 // (scripts/fetch-models.mjs) for the models models.yaml's `release` lists,
@@ -11,7 +11,9 @@
 //   <out>/<name>-assets/          the same files under flat names, for a
 //                                 GitHub release (manifest.json included)
 //
-// Refuses a model not marked shippable.
+// Refuses a model not marked shippable, unless --trials: then the result is
+// marked `trialsOnly`, for the bench and the check page, and the app refuses
+// it. A release CI publishes never has it.
 
 import { execFileSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -45,7 +47,7 @@ const ids = typeof flags.models === 'string' ? flags.models.split(',') : doc.rel
 const models = ids.map((id) => {
   const m = doc.models[id];
   if (!m) die(`no model ${id} in models.yaml`);
-  if (m.shippable !== true) die(`${id} isn't marked shippable in models.yaml`);
+  if (m.shippable !== true && flags.trials !== true) die(`${id} isn't marked shippable in models.yaml (--trials to try it anyway)`);
   return m;
 });
 
@@ -101,6 +103,7 @@ try {
 const manifest = {
   protocol: PROTOCOL,
   release,
+  ...(models.some((m) => m.shippable !== true) ? { trialsOnly: true } : {}),
   built: { from: commit, runtimes: built },
   runtimes,
   models: modelEntries,

@@ -1,0 +1,7 @@
+{
+  "sessions-synthetic-1": {
+    "url": "https://github.com/sailscoring/voice-engine/releases/download/sessions-synthetic-1/sessions-synthetic-1.tar.xz",
+    "sha256": "9fce4c4c3fc38b5723003dff0c774043fbbc5f2a72bc1873ee449422e32723c3",
+    "about": "48 synthetic sessions, the ones behind the first bench (2026-11-13). See the README inside."
+  }
+}

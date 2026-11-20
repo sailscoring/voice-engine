@@ -1,8 +1,9 @@
 name: build
 
 # Every push builds the runtime in its pinned container, fetches the models
-# the release lists, assembles a release and smoke-tests it. A tag v<N> also
-# publishes it as a GitHub release: the only way a release is made.
+# the release lists, assembles a release, smoke-tests it and benches it
+# against bench/baseline.json. A tag v<N> also publishes it as a GitHub
+# release: the only way a release is made, and only once the bench passes.
 
 on:
   push:
@@ -22,6 +23,9 @@ jobs:
       contents: write
     env:
       CONTAINER_ENGINE: docker
+      # The Sail Scoring branch whose lib/voice/calls.ts the bench reads
+      # words with: the one finishes by voice is on.
+      APP_REF: main
       RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'dev' }}
     steps:
       - uses: actions/checkout@v4
@@ -52,10 +56,41 @@ jobs:
       - name: Smoke test
         run: node scripts/smoke-test.mjs "dist/$RELEASE"
 
+      # The bench reads words with the app's own lib/voice/calls.ts.
+      - name: The app's reading of calls
+        uses: actions/checkout@v4
+        with:
+          repository: sailscoring/sailscoring
+          ref: ${{ env.APP_REF }}
+          path: app
+          sparse-checkout: lib/voice/calls.ts
+          sparse-checkout-cone-mode: false
+
+      - name: Bench sessions
+        uses: actions/cache@v4
+        with:
+          path: build/sessions/*.tar.xz
+          key: sessions-${{ hashFiles('bench/sessions.json') }}
+
+      - name: Bench
+        run: |
+          if [ ! -f app/lib/voice/calls.ts ]; then
+            echo "::warning::sailscoring@$APP_REF has no lib/voice/calls.ts: the bench did not run"
+            echo "The bench did not run: sailscoring@$APP_REF has no lib/voice/calls.ts." >> "$GITHUB_STEP_SUMMARY"
+            # A release is never published without being benched.
+            [[ $GITHUB_REF == refs/tags/v* ]] && exit 1
+            exit 0
+          fi
+          node scripts/fetch-sessions.mjs
+          node bench/run.mjs "dist/$RELEASE" --app app --out "dist/bench-$RELEASE.json" --baseline bench/baseline.json \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ env.RELEASE }}
-          path: dist/${{ env.RELEASE }}-assets/
+          path: |
+            dist/${{ env.RELEASE }}-assets/
+            dist/bench-${{ env.RELEASE }}.json
           retention-days: 14
 
       - name: Publish the release
