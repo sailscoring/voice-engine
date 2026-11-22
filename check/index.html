@@ -6,14 +6,16 @@
 <title>Voice engine check</title>
 <style>
   :root {
-    --bg: #f6f7f9; --card: #ffffff; --ink: #0d1b2a; --muted: #5b6776; --line: #d9dee5;
-    --accent: #fb3a3b; --ok: #0b7a4b; --doubt: #a45a00; --doubt-bg: #fff4e0; --navy: #0d1b2a;
+    --bg: #f6f7f9; --card: #ffffff; --ink: #0d1b2a; --muted: #5b6776; --line: #d9dee5; --soft: #eef1f5;
+    --accent: #e3343a; --mark: #1c5bd0; --mark-bg: #e5edff; --on-mark: #ffffff;
+    --ok: #0b7a4b; --ok-bg: #dff3e9; --doubt: #975000; --doubt-bg: #fff0d6; --doubt-line: #dc9c45; --navy: #0d1b2a;
     color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #0b1420; --card: #132131; --ink: #eef2f6; --muted: #9aa7b6; --line: #26384c;
-      --ok: #4fd39a; --doubt: #ffb454; --doubt-bg: #3a2a10; --navy: #eef2f6;
+      --bg: #0b1420; --card: #132131; --ink: #eef2f6; --muted: #9aa7b6; --line: #26384c; --soft: #1a2b3e;
+      --accent: #ff5c61; --mark: #7cadff; --mark-bg: #142847; --on-mark: #08121f;
+      --ok: #4fd39a; --ok-bg: #10322a; --doubt: #ffb85c; --doubt-bg: #38280f; --doubt-line: #a8702c; --navy: #eef2f6;
       color-scheme: dark;
     }
   }
@@ -22,13 +24,14 @@
   body {
     font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     padding: 16px max(16px, env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
-    max-width: 640px; margin: 0 auto;
+    max-width: 680px; margin: 0 auto;
   }
   h1 { font-size: 1.25rem; margin: 0 0 2px; }
   h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
   p { margin: 0 0 10px; }
   .muted { color: var(--muted); }
   .small { font-size: 0.875rem; }
+  .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-top: 14px; }
   .proto { display: inline-block; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 1px 6px; vertical-align: middle; margin-left: 6px; }
   textarea, select, input[type="text"] {
@@ -41,124 +44,243 @@
   label.check input { width: 20px; height: 20px; }
   button {
     font: inherit; font-weight: 600; border: 1px solid var(--line); background: var(--card); color: var(--ink);
-    border-radius: 10px; padding: 12px 16px; min-height: 48px; cursor: pointer; touch-action: manipulation;
+    border-radius: 10px; padding: 10px 14px; min-height: 44px; cursor: pointer; touch-action: manipulation;
   }
   button.primary { background: var(--navy); color: var(--bg); border-color: var(--navy); }
+  button.ghost { background: transparent; border-color: transparent; color: var(--muted); }
+  button.sm { min-height: 34px; padding: 5px 10px; font-size: 0.875rem; border-radius: 8px; }
   button:disabled { opacity: 0.45; cursor: default; }
-  button:focus-visible, textarea:focus-visible, select:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  button:focus-visible, textarea:focus-visible, select:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--mark); outline-offset: 2px; }
   .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
   .row > * { flex: 1 1 140px; }
   [hidden] { display: none !important; }
 
-  /* Listening: one screen, read at arm's length. */
-  #listening { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column;
-    padding: calc(10px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); z-index: 5; }
-  .status { display: flex; align-items: center; gap: 10px; font-weight: 600; }
-  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); animation: pulse 1.6s ease-in-out infinite; }
+  /* A screen of its own: recording, and the timeline afterwards. */
+  .screen { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; z-index: 5;
+    padding: calc(8px + env(safe-area-inset-top)) max(0px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(0px, env(safe-area-inset-left)); }
+  .screen-in { width: 100%; max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; min-height: 0; flex: 1; position: relative; }
+  .status { display: flex; align-items: center; gap: 10px; font-weight: 600; padding: 6px 14px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); animation: pulse 1.6s ease-in-out infinite; flex: none; }
   .dot.off { background: var(--muted); animation: none; }
   @keyframes pulse { 50% { opacity: 0.35; } }
   @media (prefers-reduced-motion: reduce) { .dot { animation: none; } }
-  .meter { flex: 1; height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
+  .meter { flex: 1; height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; min-width: 30px; }
   .meter > i { display: block; height: 100%; width: 0; background: var(--ok); }
-  .clock { font-variant-numeric: tabular-nums; }
-  #last { padding: 14px 0 10px; border-bottom: 1px solid var(--line); min-height: 9.6rem; }
-  #last .num { font-size: clamp(3.2rem, 17vw, 5.5rem); font-weight: 800; line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-  #last .who { font-size: 1.25rem; margin-top: 6px; }
-  #last .when { font-size: 1.5rem; font-variant-numeric: tabular-nums; margin-top: 2px; }
-  #last.doubt .num { color: var(--doubt); }
-  #heard { font-size: 0.875rem; color: var(--muted); min-height: 1.4em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; margin-top: 6px; }
-  #heard span { direction: ltr; unicode-bidi: bidi-override; }
-  #lines { flex: 1; overflow-y: auto; margin: 4px 0 10px; }
-  .line { display: grid; grid-template-columns: 5.2em 1fr auto; gap: 8px; align-items: baseline; padding: 9px 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
-  .line .t { color: var(--muted); }
-  .line .b { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .line .b small { font-weight: 400; color: var(--muted); margin-left: 6px; font-size: 0.875rem; }
-  .tag { font-size: 0.75rem; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: var(--doubt-bg); color: var(--doubt); white-space: nowrap; }
-  .bar { display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 10px; }
-  .bar button { min-height: 64px; font-size: 1.05rem; }
-  #now { font-size: 1.5rem; background: var(--navy); color: var(--bg); border-color: var(--navy); }
-  #stop { margin-top: 10px; width: 100%; min-height: 44px; font-weight: 500; }
-  #lock { position: fixed; inset: 0; z-index: 9; background: color-mix(in srgb, var(--bg) 55%, transparent); display: flex; align-items: flex-end; justify-content: center; padding-bottom: calc(40px + env(safe-area-inset-bottom)); }
+  .counts { font-size: 0.8rem; color: var(--muted); padding: 0 14px 8px; border-bottom: 1px solid var(--line); }
+  .gap { background: var(--doubt-bg); color: var(--doubt); padding: 10px 14px; font-weight: 600; font-size: 0.9rem; display: flex; gap: 10px; align-items: center; }
+  .bar { display: grid; grid-template-columns: 1fr 2.4fr; gap: 10px; padding: 10px 14px 4px; border-top: 1px solid var(--line); }
+  .bar button { min-height: 72px; font-size: 1.05rem; }
+  .now { font-size: 1.8rem !important; font-weight: 800; letter-spacing: 0.08em; background: var(--mark); color: var(--on-mark); border-color: var(--mark); }
+  .stopbar { padding: 4px 14px 12px; }
+  .stopbar button { width: 100%; }
+  #lock { position: fixed; inset: 0; z-index: 9; background: color-mix(in srgb, var(--bg) 60%, transparent); display: flex; align-items: flex-end; justify-content: center; padding-bottom: calc(40px + env(safe-area-inset-bottom)); }
   #lock span { background: var(--navy); color: var(--bg); padding: 12px 18px; border-radius: 999px; font-weight: 600; }
-  #gap { background: var(--doubt-bg); color: var(--doubt); border-radius: 10px; padding: 10px 12px; margin-top: 8px; font-weight: 600; }
 
-  /* The sheet afterwards. */
-  .settle { border-top: 1px solid var(--line); padding: 10px 0; }
-  .settle:first-of-type { border-top: 0; }
-  .settle .top { display: flex; gap: 10px; align-items: center; }
-  .settle .top .what { flex: 1; min-width: 0; }
-  .settle .choices { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
-  .settle .choices button, .play { min-height: 44px; padding: 8px 12px; }
-  .play { width: 48px; flex: none; }
-  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  td { padding: 8px 4px; border-top: 1px solid var(--line); vertical-align: middle; }
-  td.n { color: var(--muted); width: 2.2em; }
-  td.p { width: 52px; text-align: right; }
+  /* The timeline as a list. */
+  .list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; position: relative; padding: 4px 0 14px; font-size: 0.9rem; }
+  .r { --rowbg: var(--bg); background: var(--rowbg); position: relative; display: grid; grid-template-columns: 5.6rem minmax(0, 1fr); column-gap: 8px; align-items: baseline; padding: 6px 14px; cursor: pointer; }
+  .r:hover { --rowbg: var(--soft); }
+  .r .t { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; position: relative; z-index: 1; }
+  .r .b { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; min-width: 0; }
+  .r.talk .b { color: var(--muted); }
+  .r .num { font-weight: 650; text-decoration: underline; text-decoration-color: var(--line); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+  .r .nowword { color: var(--mark); font-weight: 650; }
+  .r .again { font-size: 0.72rem; color: var(--muted); }
+  .r .partial { color: var(--muted); font-style: italic; }
+  .r .why { grid-column: 2; font-size: 0.78rem; color: var(--doubt); margin-top: 2px; position: relative; z-index: 1; }
+  .r.nowrow { align-items: center; }
+  .r.nowrow::before { content: ""; position: absolute; left: calc(14px + 5.6rem + 4px); right: 12px; top: 17px; border-top: 2px solid var(--mark); }
+  .r.nowrow.sp::before { border-top-style: dashed; }
+  .r.nowrow .t { color: var(--mark); font-weight: 650; }
+  .r.nowrow .b { flex-wrap: nowrap; align-items: center; position: relative; z-index: 1; }
+  .nowtag { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.7rem; font-weight: 800; color: var(--on-mark); background: var(--mark); border-radius: 4px; padding: 1px 5px; }
+  .src { font-size: 0.72rem; color: var(--muted); background: var(--rowbg); padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .spacer { flex: 1; }
+  .r.q { display: block; text-align: center; font-size: 0.72rem; color: var(--muted); padding: 1px 0; }
+  .r.gaprow { background: repeating-linear-gradient(135deg, var(--doubt-bg) 0 6px, var(--bg) 6px 12px); color: var(--doubt); font-weight: 600; cursor: default; }
+  .r.sel { --rowbg: var(--mark-bg); box-shadow: inset 3px 0 0 var(--mark); }
+  .r.newest { font-size: 1.15rem; padding-block: 10px; }
+  .chip { display: inline-flex; align-items: baseline; gap: 5px; font-size: 0.78rem; font-weight: 500; padding: 0 7px; border-radius: 6px; border: 1px solid var(--line); background: var(--soft); white-space: nowrap; }
+  .chip b { font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .chip.close { background: var(--doubt-bg); border-color: var(--doubt-line); color: var(--doubt); }
+  .chip.unknown { background: transparent; border: 1px dashed var(--doubt-line); color: var(--doubt); }
+  .fin { display: inline-flex; align-items: center; gap: 4px; font-size: 0.78rem; font-weight: 650; padding: 0 8px; border-radius: 999px; white-space: nowrap; background: var(--rowbg); }
+  .fin.ok { background: var(--ok-bg); color: var(--ok); }
+  .fin.sug { border: 1px dashed var(--muted); }
+  .fin.sug small { font-weight: 500; color: var(--muted); font-size: 0.68rem; }
+  .fin.look { background: var(--doubt-bg); color: var(--doubt); }
+  .fin.off { color: var(--muted); text-decoration: line-through; font-weight: 500; }
+  .live-back { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); border-radius: 999px; }
+
+  /* The review. */
+  .head { display: flex; align-items: center; gap: 8px; padding: 4px 14px 8px; border-bottom: 1px solid var(--line); }
+  .head .grow { flex: 1; min-width: 0; font-weight: 650; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; padding: 2px; gap: 2px; }
+  .seg button { border: 0; min-height: 32px; padding: 4px 10px; font-size: 0.85rem; background: transparent; color: var(--muted); }
+  .seg button[aria-pressed="true"] { background: var(--navy); color: var(--bg); }
+  .media { display: flex; align-items: center; gap: 10px; padding: 8px 14px 0; }
+  .media .lab { font-size: 0.65rem; font-weight: 650; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+  .media .ph { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 1.6rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .media button { margin-left: auto; }
+  #strip { touch-action: pan-y; cursor: ew-resize; user-select: none; -webkit-user-select: none; }
+  #strip svg { display: block; width: 100%; height: 86px; }
+  #strip .wv { fill: var(--ink); opacity: 0.6; }
+  #strip .nw { stroke: var(--mark); stroke-width: 2; }
+  #strip .lb { font: 700 10px ui-monospace, Menlo, Consolas, monospace; fill: var(--ink); }
+  #strip .lb.doubt { fill: var(--doubt); }
+  #strip .fp { stroke-width: 1.5; stroke: var(--ink); }
+  #strip .ok { stroke: var(--ok); fill: var(--ok); }
+  #strip .look { stroke: var(--doubt); fill: var(--doubt); }
+  #strip .sug { stroke: var(--ink); fill: var(--bg); }
+  #strip .phd { stroke: var(--accent); stroke-width: 2; }
+  #strip .phc { fill: var(--accent); }
+  #strip .gapr { fill: var(--doubt-bg); }
+  .trans { display: flex; justify-content: center; gap: 6px; padding: 2px 14px 8px; border-bottom: 1px solid var(--line); }
+  .trans button { min-height: 36px; min-width: 46px; padding: 4px 8px; font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 500; font-size: 0.8rem; }
+  .sum { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 14px; border-bottom: 1px solid var(--line); font-size: 0.9rem; background: var(--card); }
+  .sum .attn { color: var(--doubt); font-weight: 650; }
+
+  /* The editor. */
+  .ed { position: absolute; left: 0; right: 0; bottom: 0; max-height: 80%; overflow-y: auto; overscroll-behavior: contain; background: var(--card); border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; box-shadow: 0 -14px 30px -18px rgba(0,0,0,.35); padding: 12px 14px calc(14px + env(safe-area-inset-bottom)); display: grid; gap: 10px; z-index: 4; font-size: 0.9rem; }
+  .ed .eh { display: flex; align-items: center; gap: 8px; }
+  .ed .eh strong { font-size: 1.05rem; }
+  .ed .eh .o { color: var(--muted); font-size: 0.78rem; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ed .why { margin: 0; background: var(--doubt-bg); color: var(--doubt); border-radius: 8px; padding: 6px 9px; font-weight: 500; }
+  .ed .lab { font-size: 0.72rem; font-weight: 650; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+  .ed .fld { display: grid; gap: 6px; }
+  .ac { display: grid; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .ac:empty { display: none; }
+  .ac button { display: flex; gap: 8px; align-items: baseline; text-align: left; border: 0; border-top: 1px solid var(--line); border-radius: 0; min-height: 40px; font-weight: 500; }
+  .ac button:first-child { border-top: 0; }
+  .ac button .muted { margin-left: auto; font-size: 0.78rem; }
+  .opts { display: flex; flex-wrap: wrap; gap: 6px; }
+  .opt { font-weight: 500; font-size: 0.82rem; min-height: 34px; padding: 5px 9px; border-radius: 8px; text-align: left; }
+  .opt[aria-pressed="true"] { border-color: var(--mark); background: var(--mark-bg); }
+  .tbig { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 1.3rem; font-weight: 650; }
+  .ed .foot { display: flex; justify-content: space-between; gap: 8px; }
+  .problem { color: var(--accent); font-size: 0.85rem; margin: 0; }
+
+  /* The sheet. */
+  .sheet { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 16px; }
+  .srow { display: grid; grid-template-columns: 5rem minmax(0, 1fr) auto; column-gap: 8px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .srow:hover { background: var(--soft); }
+  .srow.look { box-shadow: inset 3px 0 0 var(--doubt-line); }
+  .srow .sub { grid-column: 2 / -1; font-size: 0.78rem; color: var(--muted); }
+  .srow .sub .attn { color: var(--doubt); }
+  .tag { font-size: 0.72rem; font-weight: 650; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+  .tag.sug { border: 1px dashed var(--muted); color: var(--muted); }
+  .tag.look { background: var(--doubt-bg); color: var(--doubt); }
+  .tag.ok { background: var(--ok-bg); color: var(--ok); }
+  .nyr { padding: 12px 14px; font-size: 0.85rem; color: var(--muted); }
   #stats { font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
 <header>
   <h1>Finishes by voice <span class="proto">engine check</span></h1>
-  <p class="muted small">Call sail numbers; they go down as a finishing order. Everything stays on this device.</p>
+  <p class="muted small">Call out sail numbers; they are recorded, and finishes are made from the recording. Voice recordings are stored on this device.</p>
 </header>
 
 <main id="setup">
   <section class="card">
     <h2>The race</h2>
-    <label for="entries">Entry list, one boat a line: sail number, then her name</label>
+    <label for="entries">Entry list: a sail number and boat name per line</label>
     <textarea id="entries" spellcheck="false" autocapitalize="off"></textarea>
     <label class="check" for="timed"><input type="checkbox" id="timed" checked> This fleet needs finish times</label>
-    <label for="model">Listening model</label>
+    <label for="model">Recognition model</label>
     <select id="model"></select>
     <p class="muted small" id="modelnote"></p>
   </section>
 
   <section class="card">
     <h2>Calling finishers</h2>
-    <p>Say her number, then <strong>“now”</strong> as she crosses: <em>“sixteen thirteen … now”</em>.</p>
-    <p class="small muted">Any way you’d read it off the sail: “one six one three”, “sixteen thirteen”, “four oh seven eight”, “seven double one one”. A long number’s last three or four digits will do. Leave a breath between boats. One tone means she’s down; two low tones mean look when you can.</p>
+    <p>Call out each sail number, then <strong>“now”</strong> as they finish, or press <strong>NOW</strong>: <em>“sixteen thirteen … now”</em>.</p>
+    <p class="small muted">Any way you’d read it off the sail: “one six one three”, “sixteen thirteen”, “four oh seven eight”, “seven double one one”. A long sail number’s last three or four digits will do. Leave a pause between competitors. Everything said near the phone is recorded. One tone: a sail number was recognised. Two low tones: a sail number not on the entry list. A click: a time was marked.</p>
     <div class="row">
-      <button class="primary" id="listen" disabled>Listen</button>
+      <button class="primary" id="record" disabled>Record</button>
       <button id="pick" disabled>Run a recording…</button>
     </div>
     <input type="file" id="file" accept="audio/*,.wav" hidden>
-    <p class="small muted" id="loadnote" role="status">Loading the listening engine…</p>
+    <p class="small muted" id="loadnote" role="status">Loading the recogniser…</p>
   </section>
 
-  <section class="card" id="sheet" hidden>
-    <h2>Taken by voice</h2>
+  <section class="card" id="done" hidden>
+    <h2>The recording</h2>
     <p id="summary"></p>
-    <div id="tosettle"></div>
-    <table id="order" aria-label="Finishing order"></table>
-    <div class="row" style="margin-top:12px">
-      <button id="savewav">Save the recording</button>
-      <button id="savelog">Save the list of calls</button>
+    <div class="row">
+      <button class="primary" id="opentl">Open the timeline</button>
+      <button id="opensheet">Finish sheet</button>
     </div>
-    <p class="small muted" id="stats"></p>
+    <div class="row" style="margin-top:10px">
+      <button id="savewav">Save the recording</button>
+      <button id="savelog">Save the timeline</button>
+    </div>
+    <p class="small muted" id="stats" style="margin-top:10px"></p>
   </section>
 </main>
 
-<div id="listening" hidden>
-  <div class="status">
-    <span class="dot" id="dot"></span><span id="state">Listening</span>
-    <span class="meter" aria-hidden="true"><i id="level"></i></span>
-    <span class="clock" id="clock"></span>
+<div id="recording" class="screen" hidden>
+  <div class="screen-in">
+    <div class="status">
+      <span class="dot" id="dot"></span><span id="state" role="status">Recording</span>
+      <span class="mono muted" id="elapsed"></span>
+      <span class="meter" aria-hidden="true"><i id="level"></i></span>
+      <span class="mono" id="clock"></span>
+    </div>
+    <div class="counts" id="counts"></div>
+    <div class="gap" id="gap" hidden role="alert"><span id="gaptext"></span><button class="sm" id="gapok">OK</button></div>
+    <div class="list" id="livelist"></div>
+    <button class="sm primary live-back" id="backtolive" hidden>Back to live</button>
+    <div id="liveeditor"></div>
+    <div class="bar">
+      <button id="lockbtn">Lock</button>
+      <button id="now" class="now">NOW</button>
+    </div>
+    <div class="stopbar" id="stopbar"><button class="ghost" id="stop">Stop recording</button></div>
+    <div class="stopbar row" id="stopconfirm" hidden>
+      <button id="keep">Keep recording</button>
+      <button class="primary" id="stopyes">Stop recording</button>
+    </div>
   </div>
-  <div id="gap" hidden role="alert"></div>
-  <div id="last" aria-live="polite">
-    <div class="num">&nbsp;</div><div class="who muted">Call the first boat</div><div class="when"></div>
-  </div>
-  <div id="heard" aria-hidden="true"><span></span></div>
-  <div id="lines"></div>
-  <div class="bar">
-    <button id="undo">Undo</button>
-    <button id="now">Now</button>
-    <button id="lockbtn">Lock</button>
-  </div>
-  <button id="stop">Stop</button>
 </div>
-<div id="lock" hidden><span>Hold to unlock</span></div>
+<div id="lock" hidden><span>Locked. Still recording. Press and hold to unlock.</span></div>
+
+<div id="review" class="screen" hidden>
+  <div class="screen-in">
+    <div class="head">
+      <span class="grow">The recording</span>
+      <span class="seg" role="group" aria-label="View">
+        <button id="v-timeline" aria-pressed="true">Timeline</button>
+        <button id="v-sheet" aria-pressed="false">Finish sheet</button>
+      </span>
+      <button class="sm" id="closereview">Close</button>
+    </div>
+    <div id="tlview" style="display:flex;flex-direction:column;flex:1;min-height:0">
+      <div class="media">
+        <div><div class="lab">Playhead</div><div class="ph" id="playhead"></div></div>
+        <button class="sm primary" id="here">Finish here</button>
+      </div>
+      <div id="strip" tabindex="0" role="slider" aria-label="Playhead. Drag, or use the arrow keys."></div>
+      <div class="trans">
+        <button data-nudge="-1000">−1 s</button><button data-nudge="-100">−0.1</button>
+        <button id="playbtn" aria-label="Play">▶</button>
+        <button data-nudge="100">+0.1</button><button data-nudge="1000">+1 s</button>
+      </div>
+      <div class="sum" id="tlsum"></div>
+      <div style="position:relative;flex:1;min-height:0;display:flex;flex-direction:column">
+        <div class="list" id="reviewlist"></div>
+        <div id="revieweditor"></div>
+      </div>
+    </div>
+    <div id="sheetview" style="display:none;flex-direction:column;flex:1;min-height:0">
+      <div class="sum" id="sheetsum"></div>
+      <div style="position:relative;flex:1;min-height:0;display:flex;flex-direction:column">
+        <div class="sheet" id="sheetlist"></div>
+        <div id="sheeteditor"></div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script type="module" src="app.js"></script>
 </body>

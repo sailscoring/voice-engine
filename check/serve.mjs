@@ -5,8 +5,9 @@
 //   node check/serve.mjs [release dir] [--app <checkout>] [--port 8443]
 //
 // The release defaults to dist/dev (scripts/assemble.mjs). The page reads
-// calls with the app's own lib/voice/calls.ts, from a Sail Scoring checkout
-// (default ../sailscoring), served as calls.js with its types stripped.
+// a recording with the app's own modules (lib/voice/calls.ts, timeline.ts
+// and the others beside them), from a Sail Scoring checkout (default
+// ../sailscoring), served under /app/ with their types stripped.
 //
 // A phone's browser gives a page the microphone only over HTTPS, so this
 // makes itself a certificate (in build/, not committed) the first time it
@@ -17,7 +18,7 @@ import fs from 'node:fs';
 import https from 'node:https';
 import os from 'node:os';
 import path from 'node:path';
-import { appDir, callsSource } from '../scripts/app-calls.mjs';
+import { APP_MODULES, appDir, appModuleSource } from '../scripts/app-calls.mjs';
 import { BUILD, ROOT, die, parseArgs } from '../scripts/lib.mjs';
 
 const { flags, rest } = parseArgs(process.argv.slice(2));
@@ -25,7 +26,8 @@ const page = path.join(ROOT, 'check');
 const release = path.resolve(rest[0] ?? path.join(ROOT, 'dist', 'dev'));
 if (!fs.existsSync(path.join(release, 'manifest.json'))) die(`${release} has no manifest.json: assemble a release first`);
 const app = appDir(flags.app);
-const calls = callsSource(app);
+// Fail now, not on the phone, if the checkout lacks them.
+for (const name of APP_MODULES) appModuleSource(app, name);
 const port = Number(flags.port ?? 8443);
 
 const key = path.join(BUILD, 'check-cert', 'key.pem');
@@ -59,9 +61,15 @@ function inside(dir, rel) {
 https
   .createServer({ key: fs.readFileSync(key), cert: fs.readFileSync(cert) }, (req, res) => {
     const rel = decodeURIComponent(new URL(req.url, 'https://x').pathname);
-    if (rel === '/calls.js') {
+    const appModule = /^\/app\/([a-z-]+)\.js$/.exec(rel);
+    if (appModule) {
+      const source = appModuleSource(app, appModule[1]);
+      if (source === null) {
+        res.writeHead(404).end('Not found');
+        return;
+      }
       res.writeHead(200, { 'Content-Type': TYPES['.js'], 'Cache-Control': 'no-store' });
-      res.end(calls);
+      res.end(source);
       return;
     }
     const file = rel.startsWith('/release/')
@@ -81,7 +89,7 @@ https
     fs.createReadStream(file).pipe(res);
   })
   .listen(port, '0.0.0.0', () => {
-    console.log(`Checking ${release}, reading calls with ${app}. Open one of:`);
+    console.log(`Checking ${release}, reading recordings with ${app}. Open one of:`);
     console.log(`  https://localhost:${port}/`);
     for (const a of addresses) console.log(`  https://${a}:${port}/      (from a phone on the same network)`);
   });

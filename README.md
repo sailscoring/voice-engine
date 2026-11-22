@@ -1,13 +1,14 @@
 # voice-engine
 
 The speech recogniser [Sail Scoring](https://github.com/sailscoring/sailscoring)
-runs on a phone to take finishes by voice: a caller on the finish boat says
-the sail numbers, and the recorder's phone writes them down. Recognition
+runs on a phone to record finishes by voice: a caller on the finish boat
+calls out the sail numbers, the recorder's phone records them, and the
+words it recognises in the recording are read into finishes. Recognition
 happens on the phone, with no signal needed once the files are there.
 
 This repo builds, tests and publishes what that needs: a speech recognition
 library compiled to WebAssembly, the models it runs, and the worker that
-runs them. It knows nothing about boats or races. Reading the words as sail
+runs them. It knows nothing about competitors or races. Reading the words as sail
 numbers is the app's job.
 
 ## The one interface
