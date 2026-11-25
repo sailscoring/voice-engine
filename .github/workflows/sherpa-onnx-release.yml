@@ -1,0 +1,54 @@
+name: sherpa-onnx release
+
+# Each week, compares sherpa-onnx's latest release with the tag
+# runtimes/sherpa-onnx/versions.env pins, and opens an issue if it has
+# moved. Nothing is bumped here: moving the runtime is a decision to build
+# and bench. Each release gets one issue, ever: close it to pass on that
+# release, and the next release opens a new one.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compare with the pinned release
+        run: |
+          source runtimes/sherpa-onnx/versions.env
+          latest=$(gh api repos/k2-fsa/sherpa-onnx/releases/latest --jq .tag_name)
+          echo "Pinned $SHERPA_ONNX_TAG, latest $latest" >> "$GITHUB_STEP_SUMMARY"
+          [[ $latest == "$SHERPA_ONNX_TAG" ]] && exit 0
+
+          title="sherpa-onnx $latest is out (we build $SHERPA_ONNX_TAG)"
+          seen=$(gh issue list --state all --search "\"sherpa-onnx $latest is out\" in:title" --json number --jq length)
+          [[ $seen -gt 0 ]] && { echo "An issue for $latest already exists" >> "$GITHUB_STEP_SUMMARY"; exit 0; }
+
+          commit=$(gh api "repos/k2-fsa/sherpa-onnx/commits/$latest" --jq .sha)
+          gh issue create --title "$title" --body-file - <<EOF
+          [sherpa-onnx $latest](https://github.com/k2-fsa/sherpa-onnx/releases/tag/$latest) is out. We build \`$SHERPA_ONNX_TAG\`.
+
+          Changes: https://github.com/k2-fsa/sherpa-onnx/compare/$SHERPA_ONNX_COMMIT...$commit
+
+          To try it, in \`runtimes/sherpa-onnx/versions.env\`:
+
+          \`\`\`
+          SHERPA_ONNX_TAG=$latest
+          SHERPA_ONNX_COMMIT=$commit
+          \`\`\`
+
+          Then check that \`patches/\` still applies, that the Emscripten version sherpa-onnx's build notes ask for is still $EMSDK_VERSION, and bench the build before tagging a release.
+
+          Close this to pass on $latest.
+          EOF
