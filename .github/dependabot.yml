@@ -1,0 +1,25 @@
+# Dependabot opens a PR when something we pin has a newer version. Each PR
+# runs the full build, so a bump is smoke-tested and benched before it can
+# land. sherpa-onnx and Emscripten (runtimes/sherpa-onnx/versions.env) are
+# not watched here: Dependabot can't read that file, and moving either is a
+# decision to bench, not a routine bump.
+
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    # Wait a week after a release before proposing it.
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
