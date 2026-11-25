@@ -28,9 +28,9 @@ jobs:
       APP_REF: main
       RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'dev' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: npm
@@ -38,7 +38,7 @@ jobs:
       - run: npm ci
 
       - name: Model archives
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: build/archives
           key: archives-${{ hashFiles('models/models.yaml') }}
@@ -58,7 +58,7 @@ jobs:
 
       # The bench reads words with the app's own lib/voice/calls.ts.
       - name: The app's reading of calls
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: sailscoring/sailscoring
           ref: ${{ env.APP_REF }}
@@ -67,7 +67,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Bench sessions
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: build/sessions/*.tar.xz
           key: sessions-${{ hashFiles('bench/sessions.json') }}
@@ -85,7 +85,7 @@ jobs:
           node bench/run.mjs "dist/$RELEASE" --app app --out "dist/bench-$RELEASE.json" --baseline bench/baseline.json \
             | tee -a "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ env.RELEASE }}
           path: |
